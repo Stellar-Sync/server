@@ -17,16 +17,29 @@ func handleMessage(client *websocket.Client, msg models.Message) {
 
 	switch msg.Type {
 	case "connect":
-		handleConnect(client)
+		handleConnect(client, msg)
 	case "character_data":
 		handleCharacterData(client, msg)
+	case "request_users":
+		handleRequestUsers(client)
+	case "request_user_data":
+		handleRequestUserData(client, msg)
 	default:
 		handleUnknownMessage(client, msg)
 	}
 }
 
 // handleConnect handles client connection messages
-func handleConnect(client *websocket.Client) {
+func handleConnect(client *websocket.Client, msg models.Message) {
+	// Extract user info from the connect message
+	if data, ok := msg.Data.(map[string]interface{}); ok {
+		if userID, ok := data["user_id"].(string); ok {
+			if name, ok := data["name"].(string); ok {
+				client.SetUserInfo(userID, name)
+			}
+		}
+	}
+
 	response := models.Message{
 		Type: "connected",
 		Data: map[string]interface{}{
@@ -35,10 +48,60 @@ func handleConnect(client *websocket.Client) {
 		},
 	}
 	client.SendMessage(response)
+
+	// Broadcast updated user list to all clients
+	broadcastUserList(client.GetServer())
+}
+
+// handleRequestUsers handles requests for online users list
+func handleRequestUsers(client *websocket.Client) {
+	users := client.GetServer().GetOnlineUsers()
+	response := models.Message{
+		Type: "users_list",
+		Data: users,
+	}
+	client.SendMessage(response)
+}
+
+// handleRequestUserData handles requests for specific user's character data
+func handleRequestUserData(client *websocket.Client, msg models.Message) {
+	if data, ok := msg.Data.(map[string]interface{}); ok {
+		if targetUserID, ok := data["user_id"].(string); ok {
+			if characterData, exists := client.GetServer().GetUserData(targetUserID); exists {
+				response := models.Message{
+					Type: "user_character_data",
+					Data: map[string]interface{}{
+						"user_id": targetUserID,
+						"data":    characterData,
+					},
+				}
+				client.SendMessage(response)
+			} else {
+				response := models.Message{
+					Type:  "error",
+					Error: "User data not found",
+				}
+				client.SendMessage(response)
+			}
+		}
+	}
+}
+
+// broadcastUserList broadcasts the current user list to all clients
+func broadcastUserList(server *websocket.Server) {
+	users := server.GetOnlineUsers()
+	broadcastMsg := models.Message{
+		Type: "users_list",
+		Data: users,
+	}
+	server.BroadcastToOthers(nil, broadcastMsg)
 }
 
 // handleCharacterData handles character data messages
 func handleCharacterData(client *websocket.Client, msg models.Message) {
+	// Store the character data for this user
+	client.GetServer().StoreUserData(client.GetUserID(), msg.Data)
+
 	// Send acknowledgment to the sender
 	response := models.Message{
 		Type: "character_data_received",

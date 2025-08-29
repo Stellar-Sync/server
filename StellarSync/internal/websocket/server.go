@@ -18,6 +18,8 @@ type Client struct {
 	send   chan []byte
 	server *Server
 	mu     sync.Mutex
+	userID string
+	name   string
 }
 
 // MessageHandlerFunc is a function type for handling messages
@@ -31,6 +33,7 @@ type Server struct {
 	unregister chan *Client
 	mu         sync.RWMutex
 	handler    MessageHandlerFunc
+	userData   map[string]interface{} // Store latest character data per user
 }
 
 // NewServer creates a new WebSocket server
@@ -41,6 +44,7 @@ func NewServer(handler MessageHandlerFunc) *Server {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		handler:    handler,
+		userData:   make(map[string]interface{}),
 	}
 }
 
@@ -112,7 +116,7 @@ func (c *Client) readPump() {
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(1024 * 1024) // 1MB max message size for character data
+	c.conn.SetReadLimit(100 * 1024 * 1024) // 100MB max message size for file transfers
 	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -180,6 +184,54 @@ func (c *Client) writePump() {
 // GetServer returns the server instance
 func (c *Client) GetServer() *Server {
 	return c.server
+}
+
+// GetUserID returns the user ID
+func (c *Client) GetUserID() string {
+	return c.userID
+}
+
+// GetName returns the user name
+func (c *Client) GetName() string {
+	return c.name
+}
+
+// SetUserInfo sets the user information
+func (c *Client) SetUserInfo(userID, name string) {
+	c.userID = userID
+	c.name = name
+}
+
+// GetOnlineUsers returns a list of online users
+func (s *Server) GetOnlineUsers() []models.UserInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var users []models.UserInfo
+	for client := range s.clients {
+		users = append(users, models.UserInfo{
+			ID:       client.userID,
+			Name:     client.name,
+			Online:   true,
+			LastSeen: time.Now().Unix(),
+		})
+	}
+	return users
+}
+
+// StoreUserData stores character data for a user
+func (s *Server) StoreUserData(userID string, data interface{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.userData[userID] = data
+}
+
+// GetUserData retrieves character data for a user
+func (s *Server) GetUserData(userID string) (interface{}, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	data, exists := s.userData[userID]
+	return data, exists
 }
 
 // SendMessage sends a message to this client
