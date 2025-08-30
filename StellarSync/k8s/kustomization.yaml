@@ -5,6 +5,7 @@ namespace: stellarsync
 
 resources:
   - namespace.yaml
+  - config.yaml
   - storage.yaml
   - main-server-deployment.yaml
   - file-server-deployment.yaml
@@ -22,3 +23,4 @@ images:
     newTag: latest
   - name: kasuaberra/stellarsync-fileserver
     newTag: latest
+# Note: Update domain and email manually in ingress.yaml and cluster-issuer.yaml

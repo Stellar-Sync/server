@@ -14,12 +14,13 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
     nginx.ingress.kubernetes.io/proxy-send-timeout: '300'
 spec:
+  # TLS configuration (uses environment variable)
   tls:
     - hosts:
-        - your-domain.com
+        - stellar.kasu.network
       secretName: stellarsync-tls
   rules:
-    - host: your-domain.com
+    - host: stellar.kasu.network
       http:
         paths:
           - path: /

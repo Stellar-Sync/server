@@ -18,20 +18,27 @@ This directory contains Kubernetes manifests for deploying the Stellar Sync serv
 
 ### Prerequisites
 
-1. **Docker Hub Images**: Build and push your images
+1. **Set up environment variables**:
 
+   ```bash
+   # Run the setup script
+   chmod +x k8s/setup-env.sh
+   ./k8s/setup-env.sh
+   ```
+
+   This will prompt you for:
+
+   - Your domain (e.g., stellar.kasu.network)
+   - Your email address
+   - Your Docker Hub username
+
+2. **Build and push Docker images**:
    ```bash
    docker build -f Dockerfile.main -t your-dockerhub-username/stellarsync-main:latest .
    docker build -f Dockerfile.fileserver -t your-dockerhub-username/stellarsync-fileserver:latest .
    docker push your-dockerhub-username/stellarsync-main:latest
    docker push your-dockerhub-username/stellarsync-fileserver:latest
    ```
-
-2. **Update Image Names**: Replace `your-dockerhub-username` in all YAML files
-
-3. **Update Domain**: Replace `your-domain.com` in `ingress.yaml`
-
-4. **Update Email**: Replace `your-email@example.com` in `cluster-issuer.yaml`
 
 ### Deploy with Kustomize (Recommended)
 
