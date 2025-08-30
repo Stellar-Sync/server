@@ -1,0 +1,38 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the file server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o file-server ./cmd/fileserver
+
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates and curl for health checks
+RUN apk --no-cache add ca-certificates curl
+
+# Create app directory
+WORKDIR /app
+
+# Copy the binary from builder stage
+COPY --from=builder /app/file-server .
+
+# Create uploads directory
+RUN mkdir -p uploads
+
+# Expose port
+EXPOSE 6200
+
+# Run the file server
+CMD ["./file-server"]

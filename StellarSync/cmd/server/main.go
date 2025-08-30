@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"stellarsync-server/internal/models"
@@ -368,9 +369,15 @@ func main() {
 	log.Printf("Starting Stellar Sync Server...")
 	log.Printf("=====================================")
 
+	// Get file server URL from environment variable, default to localhost
+	fileServerURL := os.Getenv("FILE_SERVER_URL")
+	if fileServerURL == "" {
+		fileServerURL = "http://localhost:6200"
+	}
+
 	// Initialize file proxy to forward requests to file server
-	fileProxy = proxy.NewFileProxy("http://localhost:6200")
-	log.Printf("[STARTUP] File proxy initialized, forwarding to file server at http://localhost:6200")
+	fileProxy = proxy.NewFileProxy(fileServerURL)
+	log.Printf("[STARTUP] File proxy initialized, forwarding to file server at %s", fileServerURL)
 
 	// Create WebSocket server with message handler
 	wsServer := websocket.NewServer(handleMessage)

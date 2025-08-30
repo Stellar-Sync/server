@@ -13,7 +13,6 @@ service:
       value: '6000'
   build:
     builder: go
-    buildCommand: go build -o stellarsync-server ./cmd/combined
     runCommand: ./stellarsync-server
   resources:
     cpu: 0.5
