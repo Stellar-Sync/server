@@ -8,8 +8,37 @@ import (
 	"time"
 
 	"stellarsync-server/internal/models"
+	"stellarsync-server/internal/proxy"
 	"stellarsync-server/internal/websocket"
 )
+
+// Global file proxy for forwarding requests to file server
+var fileProxy *proxy.FileProxy
+
+// handleFileUpload forwards file upload requests to the file server
+func handleFileUpload(w http.ResponseWriter, r *http.Request) {
+	fileProxy.ForwardRequest(w, r)
+}
+
+// handleFileDownload forwards file download requests to the file server
+func handleFileDownload(w http.ResponseWriter, r *http.Request) {
+	fileProxy.ForwardRequest(w, r)
+}
+
+// handleFileList forwards file list requests to the file server
+func handleFileList(w http.ResponseWriter, r *http.Request) {
+	fileProxy.ForwardRequest(w, r)
+}
+
+// handleFileMetadataUpload forwards file metadata upload requests to the file server
+func handleFileMetadataUpload(w http.ResponseWriter, r *http.Request) {
+	fileProxy.ForwardRequest(w, r)
+}
+
+// handleFileMetadataDownload forwards file metadata download requests to the file server
+func handleFileMetadataDownload(w http.ResponseWriter, r *http.Request) {
+	fileProxy.ForwardRequest(w, r)
+}
 
 // min returns the smaller of two integers
 func min(a, b int) int {
@@ -101,7 +130,10 @@ func handleRequestUserData(client *websocket.Client, msg models.Message) {
 				// Get the source character name from the character data
 				var sourceCharacterName string
 				if charData, ok := characterData.(map[string]interface{}); ok {
-					if name, ok := charData["name"].(string); ok {
+					if name, ok := charData["character_name"].(string); ok {
+						sourceCharacterName = name
+					} else if name, ok := charData["name"].(string); ok {
+						// Fallback to old format
 						sourceCharacterName = name
 					}
 				}
@@ -203,8 +235,10 @@ func handleCharacterData(client *websocket.Client, msg models.Message) {
 		log.Printf("[CHARACTER_DATA] Data structure for user %s:", userName)
 
 		// Log basic character info
-		if name, ok := data["name"].(string); ok {
+		if name, ok := data["character_name"].(string); ok {
 			log.Printf("[CHARACTER_DATA] - Character Name: %s", name)
+		} else if name, ok := data["name"].(string); ok {
+			log.Printf("[CHARACTER_DATA] - Character Name (old format): %s", name)
 		}
 		if world, ok := data["world"].(string); ok {
 			log.Printf("[CHARACTER_DATA] - World: %s", world)
@@ -334,6 +368,10 @@ func main() {
 	log.Printf("Starting Stellar Sync Server...")
 	log.Printf("=====================================")
 
+	// Initialize file proxy to forward requests to file server
+	fileProxy = proxy.NewFileProxy("http://localhost:6200")
+	log.Printf("[STARTUP] File proxy initialized, forwarding to file server at http://localhost:6200")
+
 	// Create WebSocket server with message handler
 	wsServer := websocket.NewServer(handleMessage)
 	go wsServer.Start()
@@ -342,6 +380,11 @@ func main() {
 	// Set up HTTP routes
 	http.HandleFunc("/ws", wsServer.HandleWebSocket)
 	http.HandleFunc("/health", healthCheckHandler)
+	http.HandleFunc("/upload", handleFileUpload)
+	http.HandleFunc("/download", handleFileDownload)
+	http.HandleFunc("/list", handleFileList)
+	http.HandleFunc("/metadata/upload", handleFileMetadataUpload)
+	http.HandleFunc("/metadata/download", handleFileMetadataDownload)
 	log.Printf("[STARTUP] HTTP routes configured")
 
 	// Add a simple status page
@@ -371,14 +414,16 @@ func main() {
 	})
 
 	port := ":6000"
-	log.Printf("[STARTUP] Server configuration:")
+	log.Printf("[STARTUP] Main server configuration:")
 	log.Printf("[STARTUP] - Port: %s", port)
 	log.Printf("[STARTUP] - WebSocket endpoint: ws://localhost%s/ws", port)
 	log.Printf("[STARTUP] - Status page: http://localhost%s/", port)
 	log.Printf("[STARTUP] - Health check: http://localhost%s/health", port)
+	log.Printf("[STARTUP] - File operations: Proxied to file server (port 6200)")
 	log.Printf("[STARTUP] - WebSocket read limit: 100MB")
 	log.Printf("=====================================")
-	log.Printf("Server started successfully!")
+	log.Printf("Main server started successfully!")
+	log.Printf("File operations will be forwarded to file server at http://localhost:6200")
 	log.Printf("Waiting for client connections...")
 	log.Printf("=====================================")
 

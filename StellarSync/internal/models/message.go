@@ -17,6 +17,16 @@ type CharacterData struct {
 	Timestamp        int64                  `json:"timestamp"`
 }
 
+// FileMetadata represents file information stored on the server
+type FileMetadata struct {
+	Hash         string `json:"hash"`
+	Size         int64  `json:"size"`
+	ContentType  string `json:"content_type"`
+	UploadTime   int64  `json:"upload_time"`
+	FileName     string `json:"file_name"`
+	RelativePath string `json:"relative_path"`
+}
+
 // UserInfo represents information about a connected user
 type UserInfo struct {
 	ID       string `json:"id"`
