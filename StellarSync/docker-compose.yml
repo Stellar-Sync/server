@@ -1,0 +1,51 @@
+services:
+  # Main WebSocket server
+  main-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.main
+    ports:
+      - '6000:6000'
+    environment:
+      - PORT=6000
+      - FILE_SERVER_URL=http://file-server:6200
+    depends_on:
+      - file-server
+    networks:
+      - stellarsync-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # File server for handling file uploads/downloads
+  file-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.fileserver
+    ports:
+      - '6200:6200'
+    environment:
+      - PORT=6200
+    volumes:
+      - file-storage:/app/uploads
+    networks:
+      - stellarsync-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6200/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  file-storage:
+    driver: local
+
+networks:
+  stellarsync-network:
+    driver: bridge

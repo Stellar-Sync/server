@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: main-server
+  namespace: stellarsync
+  labels:
+    app: main-server
+    component: websocket
+spec:
+  selector:
+    app: main-server
+  ports:
+    - port: 80
+      targetPort: 6000
+      protocol: TCP
+      name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: file-server
+  namespace: stellarsync
+  labels:
+    app: file-server
+    component: storage
+spec:
+  selector:
+    app: file-server
+  ports:
+    - port: 80
+      targetPort: 6200
+      protocol: TCP
+      name: http
+  type: ClusterIP

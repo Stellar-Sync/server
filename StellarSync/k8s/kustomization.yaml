@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: stellarsync
+
+resources:
+  - namespace.yaml
+  - storage.yaml
+  - main-server-deployment.yaml
+  - file-server-deployment.yaml
+  - services.yaml
+  - ingress.yaml
+  - cluster-issuer.yaml
+  - hpa.yaml
+
+commonLabels:
+  app: stellarsync
+  version: v1.0.0
+
+images:
+  - name: kasuaberra/stellarsync-main
+    newTag: latest
+  - name: kasuaberra/stellarsync-fileserver
+    newTag: latest
