@@ -1,16 +1,13 @@
+version: '3.8'
+
 services:
-  # Main WebSocket server
   main-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.main
+    image: stellarsync/stellarsync-main:latest
+    container_name: stellarsync-main
     ports:
       - '6000:6000'
     environment:
-      - PORT=6000
       - FILE_SERVER_URL=http://file-server:6200
-    depends_on:
-      - file-server
     networks:
       - stellarsync-network
     restart: unless-stopped
@@ -19,19 +16,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
 
-  # File server for handling file uploads/downloads
   file-server:
-    build:
-      context: .
-      dockerfile: Dockerfile.fileserver
+    image: stellarsync/stellarsync-fileserver:latest
+    container_name: stellarsync-fileserver
     ports:
       - '6200:6200'
-    environment:
-      - PORT=6200
     volumes:
-      - file-storage:/app/uploads
+      - file-storage:/app/files
     networks:
       - stellarsync-network
     restart: unless-stopped
@@ -40,7 +32,36 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: stellarsync-nginx
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs:/var/log/nginx
+    depends_on:
+      - main-server
+      - file-server
+    networks:
+      - stellarsync-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--quiet',
+          '--tries=1',
+          '--spider',
+          'http://localhost/health',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   file-storage:

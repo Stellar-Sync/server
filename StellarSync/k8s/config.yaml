@@ -8,3 +8,5 @@ data:
   EMAIL: 'your-email@example.com'
   DOCKER_IMAGE_MAIN: 'kasuaberra/stellarsync-main:latest'
   DOCKER_IMAGE_FILESERVER: 'kasuaberra/stellarsync-fileserver:latest'
+
+
