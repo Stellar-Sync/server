@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   main-server:
-    image: stellarsync/stellarsync-main:latest
+    image: kasuaberra/stellarsync-main:latest
     container_name: stellarsync-main
     ports:
       - '6000:6000'
@@ -18,7 +18,7 @@ services:
       retries: 3
 
   file-server:
-    image: stellarsync/stellarsync-fileserver:latest
+    image: kasuaberra/stellarsync-fileserver:latest
     container_name: stellarsync-fileserver
     ports:
       - '6200:6200'
@@ -41,7 +41,6 @@ services:
       - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
       - ./logs:/var/log/nginx
     depends_on:
       - main-server

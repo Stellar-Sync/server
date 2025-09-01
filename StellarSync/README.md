@@ -11,17 +11,24 @@ Simple server deployment for Stellar Sync with nginx, SSL, and Docker Compose.
 docker-compose up -d
 ```
 
-### 2. Set up SSL (after DNS is configured)
+### 2. Test the server
+
+```bash
+# Check if everything is working
+curl http://localhost/health
+```
+
+### 3. Set up SSL (after DNS is configured)
 
 ```bash
 # Make script executable
-chmod +x setup-ssl.sh manage.sh
+chmod +x add-ssl.sh manage.sh
 
-# Set up SSL certificate
-./setup-ssl.sh your-domain.com your-email@example.com
+# Add SSL certificate
+./add-ssl.sh your-domain.com your-email@example.com
 ```
 
-### 3. Manage Services
+### 4. Manage Services
 
 ```bash
 # View status
@@ -104,7 +111,7 @@ stellarsync/
 
 ```bash
 # After DNS is configured to point to your server
-./setup-ssl.sh your-domain.com your-email@example.com
+./add-ssl.sh your-domain.com your-email@example.com
 ```
 
 ### Manual Renewal

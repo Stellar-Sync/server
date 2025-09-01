@@ -65,10 +65,17 @@ case "$1" in
         ;;
     "ssl-renew")
         print_status "🔒 Renewing SSL certificate..."
-        sudo certbot renew
-        sudo cp "/etc/letsencrypt/live/$(grep -o 'server_name [^;]*' nginx.conf | awk '{print $2}')/fullchain.pem" ssl/
-        sudo cp "/etc/letsencrypt/live/$(grep -o 'server_name [^;]*' nginx.conf | awk '{print $2}')/privkey.pem" ssl/
-        sudo chown $(whoami):$(whoami) ssl/*
+        if [[ $EUID -eq 0 ]]; then
+            certbot renew
+            cp "/etc/letsencrypt/live/$(grep -o 'server_name [^;]*' nginx.conf | awk '{print $2}')/fullchain.pem" ssl/
+            cp "/etc/letsencrypt/live/$(grep -o 'server_name [^;]*' nginx.conf | awk '{print $2}')/privkey.pem" ssl/
+            chown root:root ssl/*
+        else
+            sudo certbot renew
+            sudo cp "/etc/letsencrypt/live/$(grep -o 'server_name [^;]*' nginx.conf | awk '{print $2}')/fullchain.pem" ssl/
+            sudo cp "/etc/letsencrypt/live/$(grep -o 'server_name [^;]*' nginx.conf | awk '{print $2}')/privkey.pem" ssl/
+            sudo chown $(whoami):$(whoami) ssl/*
+        fi
         docker-compose restart nginx
         print_success "✅ SSL renewed!"
         ;;
