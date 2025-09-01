@@ -82,9 +82,17 @@ if ! command -v certbot &> /dev/null; then
     fi
 fi
 
-# Stop nginx temporarily
-print_status "Stopping nginx container..."
-docker-compose stop nginx
+# Stop all containers and clean up
+print_status "Stopping all containers..."
+docker-compose down
+
+# Remove the nginx container specifically to avoid recreation issues
+print_status "Removing nginx container..."
+docker rm -f stellarsync-nginx 2>/dev/null || true
+
+# Clean up any dangling containers
+print_status "Cleaning up containers..."
+docker container prune -f
 
 # Get SSL certificate
 print_status "Getting SSL certificate for $DOMAIN..."
@@ -271,15 +279,26 @@ EOF
 print_status "Updating docker-compose.yml to include SSL volume..."
 sed -i 's|- ./logs:/var/log/nginx|- ./ssl:/etc/nginx/ssl:ro\n      - ./logs:/var/log/nginx|' docker-compose.yml
 
-# Start nginx with SSL
-print_status "Starting nginx with SSL..."
-docker-compose up -d nginx
+# Start all services fresh
+print_status "Starting all services..."
+docker-compose up -d
+
+# Wait a moment for services to start
+sleep 5
+
+# Check if services are running
+print_status "Checking service status..."
+docker-compose ps
 
 print_success "✅ SSL setup complete!"
 echo ""
 echo "📋 Certificate details:"
 echo "  Domain: $DOMAIN"
-echo "  Expires: $(sudo certbot certificates | grep -A 2 "$DOMAIN" | grep "VALID" | awk '{print $2}')"
+if [[ $EUID -eq 0 ]]; then
+    echo "  Expires: $(certbot certificates | grep -A 2 "$DOMAIN" | grep "VALID" | awk '{print $2}')"
+else
+    echo "  Expires: $(sudo certbot certificates | grep -A 2 "$DOMAIN" | grep "VALID" | awk '{print $2}')"
+fi
 echo "  Auto-renewal: Every 60 days"
 echo ""
 echo "🔗 Your server is now available at:"
