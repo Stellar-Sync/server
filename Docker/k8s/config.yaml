@@ -10,3 +10,4 @@ data:
   DOCKER_IMAGE_FILESERVER: 'kasuaberra/stellarsync-fileserver:latest'
 
 
+

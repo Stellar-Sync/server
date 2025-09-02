@@ -20,6 +20,62 @@ var fileStorage = make(map[string]models.FileMetadata)
 // Global file metadata storage - for sharing file metadata between clients
 var fileMetadataStorage = make(map[string]map[string]interface{})
 
+// Configuration
+var (
+	storagePath = getEnv("STORAGE_PATH", "/app/files")
+	fileTTL     = 6 * time.Hour // 6 hours TTL
+)
+
+// getEnv gets environment variable or returns default
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// cleanupExpiredFiles removes files older than TTL
+func cleanupExpiredFiles() {
+	ticker := time.NewTicker(1 * time.Hour) // Check every hour
+	go func() {
+		for range ticker.C {
+			cleanupFiles()
+		}
+	}()
+}
+
+// cleanupFiles performs the actual cleanup
+func cleanupFiles() {
+	now := time.Now()
+	expiredHashes := make([]string, 0)
+
+	// Find expired files
+	for hash, metadata := range fileStorage {
+		uploadTime := time.Unix(metadata.UploadTime, 0)
+		if now.Sub(uploadTime) > fileTTL {
+			expiredHashes = append(expiredHashes, hash)
+		}
+	}
+
+	// Remove expired files
+	for _, hash := range expiredHashes {
+		// Remove from storage
+		delete(fileStorage, hash)
+
+		// Remove file from disk
+		filePath := filepath.Join(storagePath, hash)
+		if err := os.Remove(filePath); err != nil {
+			log.Printf("[CLEANUP] Failed to remove expired file %s: %v", hash, err)
+		} else {
+			log.Printf("[CLEANUP] Removed expired file: %s (age: %v)", hash, now.Sub(time.Unix(fileStorage[hash].UploadTime, 0)))
+		}
+	}
+
+	if len(expiredHashes) > 0 {
+		log.Printf("[CLEANUP] Cleaned up %d expired files", len(expiredHashes))
+	}
+}
+
 // handleFileUpload handles file uploads from clients
 func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -53,16 +109,15 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create uploads directory if it doesn't exist
-	uploadsDir := "./uploads"
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
-		log.Printf("[FILE_UPLOAD] Failed to create uploads directory: %v", err)
+	// Create storage directory if it doesn't exist
+	if err := os.MkdirAll(storagePath, 0755); err != nil {
+		log.Printf("[FILE_UPLOAD] Failed to create storage directory: %v", err)
 		http.Error(w, "Server error", http.StatusInternalServerError)
 		return
 	}
 
 	// Create file path
-	filePath := filepath.Join(uploadsDir, hash)
+	filePath := filepath.Join(storagePath, hash)
 
 	// Create the file
 	dst, err := os.Create(filePath)
@@ -91,7 +146,7 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 		RelativePath: relativePath,
 	}
 
-	log.Printf("[FILE_UPLOAD] Successfully uploaded file: %s (%d bytes)", hash, written)
+	log.Printf("[FILE_UPLOAD] Successfully uploaded file: %s (%d bytes) to %s", hash, written, filePath)
 
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
@@ -125,11 +180,11 @@ func handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get file path
-	filePath := filepath.Join("./uploads", hash)
+	filePath := filepath.Join(storagePath, hash)
 
 	// Check if file exists on disk
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		log.Printf("[FILE_DOWNLOAD] File not found on disk: %s", hash)
+		log.Printf("[FILE_DOWNLOAD] File not found on disk: %s", filePath)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
@@ -142,7 +197,7 @@ func handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	// Serve file
 	http.ServeFile(w, r, filePath)
 
-	log.Printf("[FILE_DOWNLOAD] Successfully served file: %s", hash)
+	log.Printf("[FILE_DOWNLOAD] Successfully served file: %s from %s", hash, filePath)
 }
 
 // handleFileList returns list of available files
@@ -293,6 +348,9 @@ func main() {
 	log.Printf("File server started successfully!")
 	log.Printf("Waiting for file operations...")
 	log.Printf("=====================================")
+
+	// Start cleanup routine
+	cleanupExpiredFiles()
 
 	if err := http.ListenAndServe(port, nil); err != nil {
 		log.Fatal("[FATAL] File server failed to start:", err)

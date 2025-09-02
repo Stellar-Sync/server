@@ -22,8 +22,10 @@ services:
     container_name: stellarsync-fileserver
     ports:
       - '6200:6200'
+    environment:
+      - STORAGE_PATH=/app/files
     volumes:
-      - file-storage:/app/files
+      - stellarsync-data:/app/files
     networks:
       - stellarsync-network
     restart: unless-stopped
@@ -42,8 +44,8 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./proxy_common.conf:/etc/nginx/proxy_common.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-      - ./logs:/var/log/nginx
+      - stellarsync-ssl:/etc/nginx/ssl:ro
+      - stellarsync-logs:/var/log/nginx
     depends_on:
       - main-server
       - file-server
@@ -65,7 +67,11 @@ services:
       retries: 3
 
 volumes:
-  file-storage:
+  stellarsync-data:
+    driver: local
+  stellarsync-ssl:
+    driver: local
+  stellarsync-logs:
     driver: local
 
 networks:
