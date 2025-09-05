@@ -58,6 +58,10 @@ func handleMessage(client *websocket.Client, msg models.Message) {
 		handleConnect(client, msg)
 	case "character_data":
 		handleCharacterData(client, msg)
+	case "zone_update":
+		handleZoneUpdate(client, msg)
+	case "name_update":
+		handleNameUpdate(client, msg)
 	case "request_users":
 		handleRequestUsers(client)
 	case "request_user_data":
@@ -72,6 +76,7 @@ func handleConnect(client *websocket.Client, msg models.Message) {
 	// Extract user info from the connect message
 	var userName string
 	var userID string
+	var userZone string
 
 	if data, ok := msg.Data.(map[string]interface{}); ok {
 		if id, ok := data["user_id"].(string); ok {
@@ -79,8 +84,13 @@ func handleConnect(client *websocket.Client, msg models.Message) {
 		}
 		if name, ok := data["name"].(string); ok {
 			userName = name
-			client.SetUserInfo(userID, name)
 		}
+		if zone, ok := data["zone"].(string); ok {
+			userZone = zone
+		}
+
+		// Set user info including zone
+		client.SetUserInfo(userID, userName, userZone)
 	}
 
 	log.Printf("[CONNECT] User %s (%s) connecting to server", userName, userID)
@@ -193,12 +203,43 @@ func handleRequestUserData(client *websocket.Client, msg models.Message) {
 				client.SendMessage(response)
 				log.Printf("[REQUEST_DATA] Successfully sent character data from %s to %s", sourceCharacterName, requestingUserName)
 			} else {
-				log.Printf("[REQUEST_DATA] User %s requested data from user %s, but no data found", requestingUserName, targetUserID)
-				response := models.Message{
-					Type:  "error",
-					Error: "User data not found",
+				// Check if the target user is online but hasn't sent data yet
+				server := client.GetServer()
+				onlineUsers := server.GetOnlineUsers()
+				var targetUserOnline bool
+				for _, user := range onlineUsers {
+					if user.ID == targetUserID {
+						targetUserOnline = true
+						break
+					}
 				}
-				client.SendMessage(response)
+
+				if targetUserOnline {
+					// Target user is online but hasn't sent data yet - queue the request
+					log.Printf("[REQUEST_DATA] User %s requested data from %s, but no data available yet. Queuing request.", requestingUserName, targetUserID)
+
+					// Queue the sync request
+					server.QueueSyncRequest(targetUserID, requestingUserID, requestingUserName)
+
+					// Send a "waiting" message to the requesting user
+					response := models.Message{
+						Type: "sync_request_queued",
+						Data: map[string]interface{}{
+							"message":        "User is online but hasn't sent character data yet. Your request has been queued and will be fulfilled when data becomes available.",
+							"target_user_id": targetUserID,
+							"status":         "queued",
+						},
+					}
+					client.SendMessage(response)
+				} else {
+					// Target user is not online
+					log.Printf("[REQUEST_DATA] User %s requested data from %s, but user is not online", requestingUserName, targetUserID)
+					response := models.Message{
+						Type:  "error",
+						Error: "User is not online",
+					}
+					client.SendMessage(response)
+				}
 			}
 		} else {
 			log.Printf("[REQUEST_DATA] User %s sent request without user_id", requestingUserName)
@@ -345,6 +386,57 @@ func handleCharacterData(client *websocket.Client, msg models.Message) {
 	log.Printf("[CHARACTER_DATA] Broadcasted character data from user %s to other clients", userName)
 }
 
+// handleZoneUpdate handles zone update messages from clients
+func handleZoneUpdate(client *websocket.Client, msg models.Message) {
+	userID := client.GetUserID()
+	userName := client.GetName()
+
+	log.Printf("[ZONE_UPDATE] User %s (%s) updating zone information", userName, userID)
+
+	if data, ok := msg.Data.(map[string]interface{}); ok {
+		if newZone, ok := data["zone"].(string); ok {
+			// Update the client's zone information
+			client.SetUserInfo(userID, userName, newZone)
+			log.Printf("[ZONE_UPDATE] User %s zone updated to: %s", userName, newZone)
+
+			// Broadcast updated user list to all clients
+			server := client.GetServer()
+			broadcastUserList(server)
+			log.Printf("[ZONE_UPDATE] Broadcasted updated user list after zone change for %s", userName)
+		} else {
+			log.Printf("[ZONE_UPDATE] User %s sent zone update without valid zone data", userName)
+		}
+	} else {
+		log.Printf("[ZONE_UPDATE] User %s sent invalid zone update data format", userName)
+	}
+}
+
+// handleNameUpdate handles name update messages
+func handleNameUpdate(client *websocket.Client, msg models.Message) {
+	userID := client.GetUserID()
+	oldName := client.GetName()
+	userZone := client.GetZone()
+
+	log.Printf("[NAME_UPDATE] User %s (%s) updating name from '%s'", oldName, userID, oldName)
+
+	if data, ok := msg.Data.(map[string]interface{}); ok {
+		if newName, ok := data["name"].(string); ok && newName != "" {
+			// Update the client's name information
+			client.SetUserInfo(userID, newName, userZone)
+			log.Printf("[NAME_UPDATE] User %s name updated from '%s' to '%s'", userID, oldName, newName)
+
+			// Broadcast updated user list to all clients
+			server := client.GetServer()
+			broadcastUserList(server)
+			log.Printf("[NAME_UPDATE] Broadcasted updated user list after name change for %s", newName)
+		} else {
+			log.Printf("[NAME_UPDATE] User %s sent name update without valid name data", oldName)
+		}
+	} else {
+		log.Printf("[NAME_UPDATE] User %s sent invalid name update data format", oldName)
+	}
+}
+
 // handleUnknownMessage handles unknown message types
 func handleUnknownMessage(client *websocket.Client, msg models.Message) {
 	response := models.Message{
@@ -361,6 +453,19 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 		"status":    "healthy",
 		"timestamp": time.Now().Unix(),
 		"service":   "stellar-sync-server",
+	})
+}
+
+// debugDataHandler shows all stored user data (for debugging)
+func debugDataHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Get the WebSocket server instance (this is a bit hacky but works for debugging)
+	// In a real implementation, you'd want to pass the server reference properly
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":   "Debug endpoint - check server logs for user data information",
+		"timestamp": time.Now().Unix(),
+		"note":      "User data information is logged when data is stored/retrieved",
 	})
 }
 
@@ -387,6 +492,7 @@ func main() {
 	// Set up HTTP routes
 	http.HandleFunc("/ws", wsServer.HandleWebSocket)
 	http.HandleFunc("/health", healthCheckHandler)
+	http.HandleFunc("/debug/data", debugDataHandler)
 	http.HandleFunc("/upload", handleFileUpload)
 	http.HandleFunc("/download", handleFileDownload)
 	http.HandleFunc("/list", handleFileList)

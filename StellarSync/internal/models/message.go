@@ -15,6 +15,7 @@ type CharacterData struct {
 	PenumbraFiles    map[string]interface{} `json:"penumbra_files"`
 	PenumbraFileData map[string][]byte      `json:"penumbra_file_data"` // Compressed mod files
 	Timestamp        int64                  `json:"timestamp"`
+	Zone             string                 `json:"zone,omitempty"` // Current zone/area the character is in
 }
 
 // FileMetadata represents file information stored on the server
@@ -31,6 +32,7 @@ type FileMetadata struct {
 type UserInfo struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
+	Zone     string `json:"zone,omitempty"` // Current zone/area the user is in
 	Online   bool   `json:"online"`
 	LastSeen int64  `json:"last_seen"`
 }
