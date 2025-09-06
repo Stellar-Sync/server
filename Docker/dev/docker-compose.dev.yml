@@ -3,8 +3,8 @@ version: '3.8'
 services:
   main-server:
     build:
-      context: ../../
-      dockerfile: Docker/dev/Dockerfile.main.dev
+      context: ../../StellarSync
+      dockerfile: ../Docker/dev/Dockerfile.main.dev
     container_name: stellarsync-main-dev
     ports:
       - '6000:6000'
@@ -23,8 +23,8 @@ services:
 
   file-server:
     build:
-      context: ../../
-      dockerfile: Docker/dev/Dockerfile.fileserver.dev
+      context: ../../StellarSync
+      dockerfile: ../Docker/dev/Dockerfile.fileserver.dev
     container_name: stellarsync-fileserver-dev
     ports:
       - '6200:6200'
