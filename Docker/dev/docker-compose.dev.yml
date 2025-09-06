@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  main-server:
+    build:
+      context: ../../
+      dockerfile: Docker/dev/Dockerfile.main.dev
+    container_name: stellarsync-main-dev
+    ports:
+      - '6000:6000'
+    environment:
+      - FILE_SERVER_URL=http://file-server:6200
+    networks:
+      - stellarsync-dev-network
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  file-server:
+    build:
+      context: ../../
+      dockerfile: Docker/dev/Dockerfile.fileserver.dev
+    container_name: stellarsync-fileserver-dev
+    ports:
+      - '6200:6200'
+    environment:
+      - STORAGE_PATH=/app/files
+    volumes:
+      - stellarsync-dev-data:/app/files
+      - ./logs:/app/logs
+    networks:
+      - stellarsync-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6200/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  stellarsync-dev-data:
+    driver: local
+
+networks:
+  stellarsync-dev-network:
+    driver: bridge

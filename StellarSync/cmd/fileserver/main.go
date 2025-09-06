@@ -76,36 +76,18 @@ func cleanupFiles() {
 	}
 }
 
-// handleFileUpload handles file uploads from clients
+// handleFileUpload handles compressed file uploads from clients
 func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Parse multipart form (32MB max)
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		log.Printf("[FILE_UPLOAD] Failed to parse form: %v", err)
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
-		return
-	}
-
-	// Get file from form
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		log.Printf("[FILE_UPLOAD] Failed to get file: %v", err)
-		http.Error(w, "Failed to get file", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	// Get metadata from form
-	hash := r.FormValue("hash")
-	relativePath := r.FormValue("relative_path")
-
-	if hash == "" || relativePath == "" {
-		log.Printf("[FILE_UPLOAD] Missing required metadata")
-		http.Error(w, "Missing required metadata", http.StatusBadRequest)
+	// Get hash from URL path
+	hash := r.URL.Path[len("/upload/"):]
+	if hash == "" {
+		log.Printf("[FILE_UPLOAD] Missing hash in URL path")
+		http.Error(w, "Missing hash parameter", http.StatusBadRequest)
 		return
 	}
 
@@ -119,6 +101,16 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	// Create file path
 	filePath := filepath.Join(storagePath, hash)
 
+	// Read compressed data from request body
+	compressedData, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("[FILE_UPLOAD] Failed to read compressed data: %v", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	written := int64(len(compressedData))
+
 	// Create the file
 	dst, err := os.Create(filePath)
 	if err != nil {
@@ -128,10 +120,10 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer dst.Close()
 
-	// Copy file content
-	written, err := io.Copy(dst, file)
+	// Write compressed data to file
+	_, err = dst.Write(compressedData)
 	if err != nil {
-		log.Printf("[FILE_UPLOAD] Failed to save file: %v", err)
+		log.Printf("[FILE_UPLOAD] Failed to save compressed file: %v", err)
 		http.Error(w, "Server error", http.StatusInternalServerError)
 		return
 	}
@@ -140,13 +132,13 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	fileStorage[hash] = models.FileMetadata{
 		Hash:         hash,
 		Size:         written,
-		ContentType:  header.Header.Get("Content-Type"),
+		ContentType:  "application/octet-stream",
 		UploadTime:   time.Now().Unix(),
-		FileName:     header.Filename,
-		RelativePath: relativePath,
+		FileName:     hash,
+		RelativePath: hash,
 	}
 
-	log.Printf("[FILE_UPLOAD] Successfully uploaded file: %s (%d bytes) to %s", hash, written, filePath)
+	log.Printf("[FILE_UPLOAD] Successfully uploaded compressed file: %s (%d bytes) to %s", hash, written, filePath)
 
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")

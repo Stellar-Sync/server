@@ -1,0 +1,44 @@
+# Development Dockerfile for file server
+FROM golang:1.24-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the file server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o file-server ./cmd/fileserver
+
+# Development stage - includes development tools
+FROM alpine:latest
+
+# Install development tools
+RUN apk --no-cache add \
+    ca-certificates \
+    curl \
+    bash \
+    vim \
+    htop \
+    net-tools
+
+# Create app directory
+WORKDIR /app
+
+# Copy the binary from builder stage
+COPY --from=builder /app/file-server .
+
+# Create uploads and logs directories
+RUN mkdir -p uploads logs
+
+# Expose port
+EXPOSE 6200
+
+# Run the file server
+CMD ["./file-server"]

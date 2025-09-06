@@ -1,0 +1,44 @@
+# Development Dockerfile for main server
+FROM golang:1.24-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the main server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main-server ./cmd/server
+
+# Development stage - includes development tools
+FROM alpine:latest
+
+# Install development tools
+RUN apk --no-cache add \
+    ca-certificates \
+    curl \
+    bash \
+    vim \
+    htop \
+    net-tools
+
+# Create app directory
+WORKDIR /app
+
+# Copy the binary from builder stage
+COPY --from=builder /app/main-server .
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Expose port
+EXPOSE 6000
+
+# Run the main server
+CMD ["./main-server"]

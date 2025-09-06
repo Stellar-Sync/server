@@ -1,0 +1,9 @@
+# Development Docker logs
+logs/
+
+# Docker volumes (if using local volumes)
+data/
+
+# Temporary files
+*.tmp
+*.log
